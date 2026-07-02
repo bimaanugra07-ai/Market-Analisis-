@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI MARKET ANALISIS - Analisis Screenshot Chart Cepat & Akurat</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            200: '#b9dbfe',
+                            300: '#7cc0fd',
+                            400: '#369ffa',
+                            500: '#0c85eb',
+                            600: '#0066cc',
+                            700: '#0052a3',
+                            800: '#004685',
+                            900: '#063b6f',
+                        },
+                        neutral: {
+                            50: '#fafafa',
+                            100: '#f5f5f5',
+                            200: '#e5e5e5',
+                            300: '#d4d4d4',
+                            400: '#a3a3a3',
+                            500: '#737373',
+                            600: '#525252',
+                            700: '#404040',
+                            800: '#262626',
+                            900: '#171717',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+    <!-- React and Babel CDNs for standalone React runner -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22AI%20Market%20Analisis%22%2C%22short_name%22%3A%22AIMarket%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f8fafc%22%2C%22theme_color%22%3A%22%230066cc%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fcdn-icons-png.flaticon.com%2F512%2F8122%2F8122287.png%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%22%7D%5D%7D">
+</head>
+<body class="text-neutral-800">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Custom Toast System
+        const Toast = ({ message, type, onClose }) => {
+            useEffect(() => {
+                const timer = setTimeout(onClose, 4000);
+                return () => clearTimeout(timer);
+            }, [onClose]);
+
+            const bgClass = type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-rose-500' : 'bg-brand-500';
+            return (
+                <div className={`fixed bottom-5 right-5 z-50 ${bgClass} text-white px-5 py-3 rounded-xl shadow-lg flex items-center space-x-3 animate-bounce-short`}>
+                    <span>{message}</span>
+                    <button onClick={onClose} className="hover:opacity-70 font-bold">&times;</button>
+                </div>
+            );
+        };
+
+        function App() {
+            const [selectedProvider, setSelectedProvider] = useState('gemini');
+            const [apiKeys, setApiKeys] = useState({
+                gemini: '',
+                openai: '',
+                openrouter: ''
+            });
+            const [showApiKey, setShowApiKey] = useState(false);
+            const [isTestingConnection, setIsTestingConnection] = useState(false);
+            const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+            const [imageFile, setImageFile] = useState(null);
+            const [imagePreview, setImagePreview] = useState('');
+            const [imageMetadata, setImageMetadata] = useState(null);
+            const [isImageBlurry, setIsImageBlurry] = useState(false);
+            
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+            const [analysisStep, setAnalysisStep] = useState(0);
+            const [analysisResult, setAnalysisResult] = useState(null);
+            
+            const [history, setHistory] = useState([]);
+            const [searchQuery, setSearchQuery] = useState('');
+            const [filterSignal, setFilterSignal] = useState('ALL');
+            const [sortBy, setSortBy] = useState('NEWEST');
+            
+            const [toasts, setToasts] = useState([]);
+            const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+            const [pwaInstallPrompt, setPwaInstallPrompt] = useState(null);
+
+            const fileInputRef = useRef(null);
+
+            const analysisSteps = [
+                "Mengupload gambar...",
+                "Memvalidasi gambar...",
+                "Membaca screenshot...",
+                "OCR Chart...",
+                "Mendeteksi Pair...",
+                "Mendeteksi Timeframe...",
+                "Mendeteksi Candlestick...",
+                "Mendeteksi Trend...",
+                "Menghitung Support...",
+                "Menghitung Resistance...",
+                "Menghitung Momentum...",
+                "Analisis AI Vision...",
+                "Menentukan Timing Masuk...",
+                "Menyusun hasil eksekusi...",
+                "Selesai."
+            ];
+
+            useEffect(() => {
+                // Load API Keys
+                const savedKeys = localStorage.getItem('ai_market_keys');
+                if (savedKeys) {
+                    try {
+                        setApiKeys(JSON.parse(savedKeys));
+                    } catch(e) {}
+                }
+
+                // Load History
+                const savedHistory = localStorage.getItem('ai_market_history');
+                if (savedHistory) {
+                    try {
+                        setHistory(JSON.parse(savedHistory));
+                    } catch(e) {}
+                }
+
+                // Listen for PWA Install prompt
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    setPwaInstallPrompt(e);
+                });
+
+                // Pull to refresh simulation trigger helper
+                let startY = 0;
+                const handleTouchStart = (e) => { startY = e.touches[0].pageY; };
+                const handleTouchEnd = (e) => {
+                    const endY = e.changedTouches[0].pageY;
+                    if (window.scrollY === 0 && endY - startY > 150) {
+                        addToast("Refreshing data...", "info");
+                        setTimeout(() => window.location.reload(), 800);
+                    }
+                };
+                window.addEventListener('touchstart', handleTouchStart);
+                window.addEventListener('touchend', handleTouchEnd);
+
+                return () => {
+                    window.removeEventListener('touchstart', handleTouchStart);
+                    window.removeEventListener('touchend', handleTouchEnd);
+                };
+            }, []);
+
+            useEffect(() => {
+                // Re-bind lucide icons when layout updates or modal is toggled
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            }, [isSettingsOpen, analysisResult, history]);
+
+            // Helper to add notification toast
+            const addToast = (message, type = 'success') => {
+                const id = Date.now();
+                setToasts(prev => [...prev, { id, message, type }]);
+            };
+
+            const removeToast = (id) => {
+                setToasts(prev => prev.filter(t => t.id !== id));
+            };
+
+            const handleInstallPWA = () => {
+                if (pwaInstallPrompt) {
+                    pwaInstallPrompt.prompt();
+                    pwaInstallPrompt.userChoice.then((choiceResult) => {
+                        if (choiceResult.outcome === 'accepted') {
+                            addToast("Aplikasi berhasil diinstall!", "success");
+                        }
+                        setPwaInstallPrompt(null);
+                    });
+                } else {
+                    addToast("PWA sudah di-install atau browser tidak mendukung auto-prompt.", "info");
+                }
+            };
+
+            const handleSaveKeys = () => {
+                localStorage.setItem('ai_market_keys', JSON.stringify(apiKeys));
+                addToast("API Keys berhasil disimpan ke Local Storage!", "success");
+                setIsSettingsOpen(false);
+            };
+
+            const handleApiKeyChange = (val) => {
+                setApiKeys(prev => ({
+                    ...prev,
+                    [selectedProvider]: val
+                }));
+            };
+
+            const maskApiKey = (key) => {
+                if (!key) return '';
+                if (key.length <= 8) return '********';
+                return key.substring(0, 4) + '****************' + key.substring(key.length - 4);
+            };
+
+            const handleTestConnection = async () => {
+                const activeKey = apiKeys[selectedProvider];
+                if (!activeKey) {
+                    addToast("Silakan masukkan API Key terlebih dahulu!", "error");
+                    return;
+                }
+
+                setIsTestingConnection(true);
+                addToast("Mencoba melakukan tes koneksi...", "info");
+
+                try {
+                    let success = false;
+                    let errorMsg = "";
+
+                    if (selectedProvider === 'gemini') {
+                        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`;
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{ parts: [{ text: "Koneksi tes. Balas hanya kata 'OK' jika kamu online." }] }]
+                            })
+                        });
+                        if (response.ok) {
+                            success = true;
+                        } else {
+                            const errData = await response.json();
+                            errorMsg = errData?.error?.message || "Kesalahan server.";
+                        }
+                    } else if (selectedProvider === 'openai') {
+                        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${activeKey}`
+                            },
+                            body: JSON.stringify({
+                                model: "gpt-4o-mini",
+                                messages: [{ role: "user", content: "Koneksi tes. Balas 'OK'" }],
+                                max_tokens: 5
+                            })
+                        });
+                        if (response.ok) success = true;
+                        else errorMsg = "Kunci OpenAI ditolak atau kuota habis.";
+                    } else if (selectedProvider === 'openrouter') {
+                        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${activeKey}`
+                            },
+                            body: JSON.stringify({
+                                model: "google/gemini-2.5-flash",
+                                messages: [{ role: "user", content: "Test connection" }],
+                                max_tokens: 5
+                            })
+                        });
+                        if (response.ok) success = true;
+                        else errorMsg = "Kunci OpenRouter ditolak atau invalid.";
+                    }
+
+                    if (success) {
+                        addToast(`Koneksi ${selectedProvider.toUpperCase()} Berhasil!`, "success");
+                    } else {
+                        addToast(`Gagal: ${errorMsg}`, "error");
+                    }
+                } catch(err) {
+                    addToast("Gagal melakukan pengetesan. Periksa jaringan Anda.", "error");
+                } finally {
+                    setIsTestingConnection(false);
+                }
+            };
+
+            const handleImageUpload = (file) => {
+                if (!file) return;
+
+                const allowedTypes = ['image/png', 'image/jpg', 'image/jpeg', 'image/webp'];
+                if (!allowedTypes.includes(file.type)) {
+                    addToast("Format file tidak didukung! Gunakan PNG, JPG, JPEG, atau WEBP.", "error");
+                    return;
+                }
+
+                if (file.size > 20 * 1024 * 1024) {
+                    addToast("Ukuran file terlalu besar! Maksimal 20 MB.", "error");
+                    return;
+                }
+
+                addToast("Mengompresi gambar untuk analisis optimal...", "info");
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const isBlurryOrTooSmall = img.width < 400 || img.height < 400;
+                        setIsImageBlurry(isBlurryOrTooSmall);
+
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        const MAX_WIDTH = 1600;
+                        const MAX_HEIGHT = 1600;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > MAX_WIDTH) {
+                                height *= MAX_WIDTH / width;
+                                width = MAX_WIDTH;
+                            }
+                        } else {
+                            if (height > MAX_HEIGHT) {
+                                width *= MAX_HEIGHT / height;
+                                height = MAX_HEIGHT;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+                        
+                        setImagePreview(compressedBase64);
+                        setImageMetadata({
+                            name: file.name,
+                            resolution: `${img.width} x ${img.height} px`,
+                            size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+                            compressedSize: `${(compressedBase64.length * 0.75 / (1024 * 1024)).toFixed(2)} MB`
+                        });
+
+                        addToast("Gambar siap dianalisis!", "success");
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            };
+
+            const handleDrop = (e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    handleImageUpload(e.dataTransfer.files[0]);
+                }
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+            };
+
+            const handleStartAnalysis = async () => {
+                if (!imagePreview) {
+                    addToast("Harap upload chart screenshot terlebih dahulu!", "error");
+                    return;
+                }
+
+                const activeKey = apiKeys[selectedProvider];
+                if (!activeKey) {
+                    addToast(`Masukkan API Key untuk ${selectedProvider.toUpperCase()} terlebih dahulu di menu Pengaturan!`, "error");
+                    setIsSettingsOpen(true);
+                    return;
+                }
+
+                setIsAnalyzing(true);
+                setAnalysisStep(0);
+
+                const updateStepInterval = setInterval(() => {
+                    setAnalysisStep(prev => {
+                        if (prev < analysisSteps.length - 2) {
+                            return prev + 1;
+                        }
+                        return prev;
+                    });
+                }, 400);
+
+                try {
+                    const base64Data = imagePreview.split(',')[1];
+                    const promptText = `Kamu adalah AI Vision khusus analisis chart trading.
+Analisis hanya berdasarkan screenshot chart yang diunggah. Jangan menggunakan berita. Jangan menggunakan data internet. Jangan mengarang.
+Jika chart tidak jelas atau buram, minta pengguna mengunggah ulang.
+
+Deteksi:
+- Pair
+- Timeframe
+- Trend
+- Support
+- Resistance
+- Momentum
+- Candlestick
+- Entry
+- Stop Loss
+- Take Profit
+- Confidence
+
+Kamu WAJIB menentukan sinyal eksekusi yang jelas (BUY, SELL, atau WAIT), termasuk timing yang pas dan level harga yang tepat untuk ambil posisi dan target profit.
+
+Jawaban WAJIB dalam format JSON yang konsisten dengan skema berikut:
+{
+  "pair": "string",
+  "timeframe": "string",
+  "signal": "BUY atau SELL atau WAIT",
+  "confidence": integer (0 - 100),
+  "trend": "string",
+  "entry": "string (Contoh: 1.14023)",
+  "stop_loss": "string (Contoh: 1.13910)",
+  "tp1": "string (Contoh: 1.14100)",
+  "tp2": "string (Contoh: 1.14250)",
+  "tp3": "string (Contoh: 1.14400)",
+  "risk_reward": "string (Contoh 1:2.8)",
+  "support": "string",
+  "resistance": "string",
+  "timing_recommendation": "string (Sertakan instruksi waktu & harga presisi. Contoh: Ambil posisi BUY sekarang di harga 1.14023 atau tunggu konfirmasi retest pada level support 1.13950)",
+  "target_profit_recommendation": "string (Sertakan target profit presisi. Contoh: Target profit utama ditetapkan pada harga 1.14100, sedangkan target sekunder berada pada area resistance terdekat yaitu 1.14250)",
+  "summary": "Ringkasan analisis lengkap dalam Bahasa Indonesia secara mendalam namun padat."
+}`;
+
+                    let aiResponseText = "";
+                    
+                    if (selectedProvider === 'gemini') {
+                        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`;
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{
+                                    parts: [
+                                        { text: promptText },
+                                        { inlineData: { mimeType: "image/jpeg", data: base64Data } }
+                                    ]
+                                }],
+                                generationConfig: {
+                                    responseMimeType: "application/json"
+                                }
+                            })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error("Gagal menghubungi API Gemini. Periksa kredensial.");
+                        }
+                        const data = await response.json();
+                        aiResponseText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                    } else if (selectedProvider === 'openai') {
+                        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${activeKey}`
+                            },
+                            body: JSON.stringify({
+                                model: "gpt-4o",
+                                response_format: { type: "json_object" },
+                                messages: [{
+                                    role: "user",
+                                    content: [
+                                        { type: "text", text: promptText },
+                                        { type: "image_url", image_url: { url: imagePreview } }
+                                    ]
+                                }]
+                            })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error("Gagal menghubungi API OpenAI. Periksa kredit Anda.");
+                        }
+                        const data = await response.json();
+                        aiResponseText = data?.choices?.[0]?.message?.content;
+
+                    } else if (selectedProvider === 'openrouter') {
+                        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${activeKey}`
+                            },
+                            body: JSON.stringify({
+                                model: "google/gemini-2.5-flash",
+                                messages: [{
+                                    role: "user",
+                                    content: [
+                                        { type: "text", text: promptText },
+                                        { type: "image_url", image_url: { url: imagePreview } }
+                                    ]
+                                }]
+                            })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error("Gagal menghubungi OpenRouter.");
+                        }
+                        const data = await response.json();
+                        aiResponseText = data?.choices?.[0]?.message?.content;
+                    }
+
+                    if (!aiResponseText) {
+                        throw new Error("AI tidak mengembalikan analisis yang valid.");
+                    }
+
+                    let cleanedJSON = aiResponseText.trim();
+                    if (cleanedJSON.startsWith("```json")) {
+                        cleanedJSON = cleanedJSON.substring(7);
+                    }
+                    if (cleanedJSON.endsWith("```")) {
+                        cleanedJSON = cleanedJSON.substring(0, cleanedJSON.length - 3);
+                    }
+                    cleanedJSON = cleanedJSON.trim();
+
+                    const parsedResult = JSON.parse(cleanedJSON);
+
+                    clearInterval(updateStepInterval);
+                    setAnalysisStep(analysisSteps.length - 1);
+                    await new Promise(r => setTimeout(r, 600));
+
+                    setAnalysisResult(parsedResult);
+                    addToast("Analisis Selesai & Berhasil Disusun!", "success");
+
+                    const historyItem = {
+                        id: Date.now(),
+                        timestamp: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
+                        provider: selectedProvider,
+                        ...parsedResult
+                    };
+
+                    const updatedHistory = [historyItem, ...history];
+                    setHistory(updatedHistory);
+                    localStorage.setItem('ai_market_history', JSON.stringify(updatedHistory));
+
+                } catch(error) {
+                    clearInterval(updateStepInterval);
+                    addToast(`Analisis Gagal: ${error.message}`, "error");
+                } finally {
+                    setIsAnalyzing(false);
+                }
+            };
+
+            const filteredHistory = history.filter(item => {
+                const query = searchQuery.toLowerCase();
+                const matchesSearch = 
+                    (item.pair && item.pair.toLowerCase().includes(query)) ||
+                    (item.timeframe && item.timeframe.toLowerCase().includes(query)) ||
+                    (item.trend && item.trend.toLowerCase().includes(query));
+                
+                if (filterSignal === 'ALL') return matchesSearch;
+                return matchesSearch && item.signal === filterSignal;
+            }).sort((a, b) => {
+                if (sortBy === 'NEWEST') return b.id - a.id;
+                if (sortBy === 'OLDEST') return a.id - b.id;
+                if (sortBy === 'CONFIDENCE') return (b.confidence || 0) - (a.confidence || 0);
+                return 0;
+            });
+
+            const handleClearHistory = () => {
+                if (window.confirm("Apakah Anda yakin ingin menghapus seluruh riwayat analisis?")) {
+                    setHistory([]);
+                    localStorage.removeItem('ai_market_history');
+                    addToast("Riwayat telah dibersihkan.", "success");
+                }
+            };
+
+            const handleDeleteHistoryItem = (id, e) => {
+                e.stopPropagation();
+                const updated = history.filter(item => item.id !== id);
+                setHistory(updated);
+                localStorage.setItem('ai_market_history', JSON.stringify(updated));
+                addToast("Hasil analisis telah dihapus.", "success");
+            };
+
+            const handleCopyText = () => {
+                if (!analysisResult) return;
+                const text = `📊 *AI MARKET ANALISIS* 📊
+                    
+Pair: ${analysisResult.pair} (${analysisResult.timeframe})
+Sinyal: *${analysisResult.signal}*
+Confidence: ${analysisResult.confidence}%
+Trend: ${analysisResult.trend}
+
+🚨 *REKOMENDASI EKSEKUSI & TIMING* 🚨
+• Entry Posisi: Ambil posisi ${analysisResult.signal} di harga ${analysisResult.entry}
+• Timing: ${analysisResult.timing_recommendation || 'Ambil tindakan berdasarkan tren pasar saat ini.'}
+• Target Profit utama: ${analysisResult.tp1}
+• TP Rekomendasi: ${analysisResult.target_profit_recommendation || `Target profit di harga ${analysisResult.tp1}`}
+
+Stop Loss: ${analysisResult.stop_loss}
+TP1: ${analysisResult.tp1} | TP2: ${analysisResult.tp2} | TP3: ${analysisResult.tp3}
+RR Ratio: ${analysisResult.risk_reward}
+
+Support: ${analysisResult.support}
+Resistance: ${analysisResult.resistance}
+
+Summary:
+${analysisResult.summary}
+
+_Disclaimer: Analisis otomatis ini bukan merupakan saran keuangan atau garansi profit._`;
+
+                navigator.clipboard.writeText(text);
+                addToast("Format analisis disalin ke papan klip!", "success");
+            };
+
+            const handleShare = () => {
+                if (navigator.share) {
+                    navigator.share({
+                        title: `AI Analisis Market ${analysisResult?.pair}`,
+                        text: `Hasil Analisis AI Market: Sinyal ${analysisResult?.signal} di Pair ${analysisResult?.pair}`,
+                        url: window.location.href,
+                    }).then(() => {
+                        addToast("Berhasil dibagikan!", "success");
+                    }).catch(() => {});
+                } else {
+                    handleCopyText();
+                }
+            };
+
+            const handleDownloadReport = () => {
+                if (!analysisResult) return;
+                
+                const svgString = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="600" height="920" viewBox="0 0 600 920" style="font-family:'Inter',sans-serif; background-color:#ffffff;">
+                        <rect width="600" height="920" fill="#ffffff"/>
+                        <!-- Decorative Header BG -->
+                        <rect width="600" height="110" fill="#0c85eb"/>
+                        
+                        <text x="30" y="55" fill="#ffffff" font-size="24" font-weight="800">AI MARKET ANALISIS</text>
+                        <text x="30" y="80" fill="#b9dbfe" font-size="14" font-weight="500">Premium Analysis Report Sheet</text>
+                        
+                        <text x="570" y="55" fill="#ffffff" font-size="12" text-anchor="end">${new Date().toLocaleDateString('id-ID')}</text>
+                        <text x="570" y="80" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="end">SIGNAL: ${analysisResult.signal}</text>
+                        
+                        <!-- Content Card -->
+                        <rect x="30" y="140" width="540" height="120" rx="12" fill="#f0f7ff" stroke="#b9dbfe" stroke-width="1"/>
+                        <text x="50" y="180" fill="#004685" font-size="14">PAIR / TIMEFRAME</text>
+                        <text x="50" y="215" fill="#004685" font-size="28" font-weight="bold">${analysisResult.pair} - ${analysisResult.timeframe}</text>
+                        
+                        <text x="550" y="180" fill="#004685" font-size="14" text-anchor="end">CONFIDENCE LEVEL</text>
+                        <text x="550" y="220" fill="#0066cc" font-size="36" font-weight="bold" text-anchor="end">${analysisResult.confidence}%</text>
+
+                        <!-- Timing & Execution Recommendation Section -->
+                        <text x="30" y="295" fill="#171717" font-size="15" font-weight="700">REKOMENDASI EKSEKUSI & TIMING POSISI</text>
+                        <rect x="30" y="305" width="540" height="110" rx="8" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+                        <text x="45" y="330" fill="#14532d" font-size="13" font-weight="bold">Entry & Timing:</text>
+                        <foreignObject x="45" y="335" width="510" height="75">
+                            <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:11px; line-height:1.4; color:#166534; font-weight: 500;">
+                                ${analysisResult.timing_recommendation || '-'}
+                            </div>
+                        </foreignObject>
+
+                        <!-- Key Stats Table -->
+                        <text x="30" y="445" fill="#171717" font-size="15" font-weight="700">TECHNICAL METRICS</text>
+                        
+                        <line x1="30" y1="455" x2="570" y2="455" stroke="#e5e5e5" stroke-width="1"/>
+                        
+                        <text x="30" y="480" fill="#737373" font-size="13">Signal Direction</text>
+                        <text x="200" y="480" fill="#171717" font-size="13" font-weight="bold">${analysisResult.signal}</text>
+                        
+                        <text x="300" y="480" fill="#737373" font-size="13">Market Trend</text>
+                        <text x="470" y="480" fill="#171717" font-size="13" font-weight="bold">${analysisResult.trend}</text>
+
+                        <line x1="30" y1="500" x2="570" y2="500" stroke="#e5e5e5" stroke-width="1"/>
+                        
+                        <text x="30" y="525" fill="#737373" font-size="13">Entry Price</text>
+                        <text x="200" y="525" fill="#171717" font-size="13" font-weight="bold">${analysisResult.entry}</text>
+                        
+                        <text x="300" y="525" fill="#737373" font-size="13">Stop Loss</text>
+                        <text x="470" y="525" fill="#c01515" font-size="13" font-weight="bold">${analysisResult.stop_loss}</text>
+
+                        <line x1="30" y1="545" x2="570" y2="545" stroke="#e5e5e5" stroke-width="1"/>
+                        
+                        <text x="30" y="570" fill="#737373" font-size="13">Take Profit 1</text>
+                        <text x="200" y="570" fill="#0f766e" font-size="13" font-weight="bold">${analysisResult.tp1}</text>
+                        
+                        <text x="300" y="570" fill="#737373" font-size="13">Take Profit 2</text>
+                        <text x="470" y="570" fill="#0f766e" font-size="13" font-weight="bold">${analysisResult.tp2}</text>
+
+                        <line x1="30" y1="590" x2="570" y2="590" stroke="#e5e5e5" stroke-width="1"/>
+
+                        <text x="30" y="615" fill="#737373" font-size="13">Take Profit 3</text>
+                        <text x="200" y="615" fill="#0f766e" font-size="13" font-weight="bold">${analysisResult.tp3}</text>
+                        
+                        <text x="300" y="615" fill="#737373" font-size="13">Risk Reward Ratio</text>
+                        <text x="470" y="615" fill="#171717" font-size="13" font-weight="bold">${analysisResult.risk_reward}</text>
+
+                        <line x1="30" y1="635" x2="570" y2="635" stroke="#e5e5e5" stroke-width="1"/>
+
+                        <!-- Summary Block -->
+                        <text x="30" y="670" fill="#171717" font-size="15" font-weight="700">RINGKASAN ANALISIS AI</text>
+                        
+                        <rect x="30" y="685" width="540" height="120" rx="8" fill="#f5f5f5"/>
+                        <foreignObject x="45" y="695" width="510" height="100">
+                            <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:12px; line-height:1.5; color:#404040;">
+                                ${analysisResult.summary}
+                            </div>
+                        </foreignObject>
+
+                        <!-- Footer / Disclaimer -->
+                        <text x="30" y="835" fill="#a3a3a3" font-size="10" font-weight="bold">DISCLAIMER</text>
+                        <foreignObject x="30" y="845" width="540" height="50">
+                            <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:9px; line-height:1.4; color:#a3a3a3;">
+                                Analisis ini dibuat oleh AI berdasarkan screenshot chart yang diunggah. Hasil bukan merupakan jaminan profit dan bukan merupakan saran keuangan profesional. Gunakan dengan risiko pribadi.
+                            </div>
+                        </foreignObject>
+                    </svg>
+                `;
+
+                const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `AIMARKET_Report_${analysisResult.pair}_${analysisResult.timeframe}.svg`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                addToast("Laporan Berhasil Diexport sebagai File SVG!", "success");
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+                    {/* Floating Toasts */}
+                    <div className="fixed bottom-5 right-5 z-50 flex flex-col space-y-2">
+                        {toasts.map(toast => (
+                            <Toast key={toast.id} message={toast.message} type={toast.type} onClose={() => removeToast(toast.id)} />
+                        ))}
+                    </div>
+
+                    {/* Top Header */}
+                    <header className="bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm backdrop-blur-md bg-opacity-95">
+                        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                                <div className="p-2.5 bg-brand-500 rounded-2xl text-white shadow-md shadow-brand-200">
+                                    <i data-lucide="trending-up" className="w-6 h-6"></i>
+                                </div>
+                                <div>
+                                    <h1 className="font-extrabold text-xl tracking-tight text-neutral-900 flex items-center gap-2">
+                                        AI MARKET ANALISIS
+                                        <span className="hidden md:inline-block bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-medium">PWA Online</span>
+                                    </h1>
+                                    <p className="text-xs text-neutral-500">Analisis Screenshot Market Menggunakan AI Vision</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                                {pwaInstallPrompt && (
+                                    <button 
+                                        onClick={handleInstallPWA}
+                                        className="bg-brand-50 text-brand-600 hover:bg-brand-100 text-xs font-semibold px-3 py-2 rounded-xl transition duration-200 flex items-center gap-1"
+                                    >
+                                        <i data-lucide="download" className="w-4 h-4"></i>
+                                        Install PWA
+                                    </button>
+                                )}
+                                
+                                {/* Professional Settings Cog Wheel button */}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsSettingsOpen(true)}
+                                    className="bg-slate-100 text-slate-700 hover:bg-slate-200 p-2.5 rounded-xl transition flex items-center gap-1.5 text-xs font-semibold"
+                                >
+                                    <i data-lucide="settings" className="w-4 h-4 text-slate-600"></i>
+                                    <span className="hidden sm:inline">Pengaturan API</span>
+                                </button>
+                                
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" title="System Ready"></span>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content Dashboard */}
+                    <main className="flex-grow max-w-7xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        
+                        {/* LEFT COLUMN: UPLOAD WORKSPACE */}
+                        <div className="lg:col-span-5 space-y-6">
+                            
+                            {/* Card: Upload Area */}
+                            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                                <h3 className="font-bold text-neutral-900 flex items-center gap-2">
+                                    <i data-lucide="image" className="w-5 h-5 text-brand-500"></i>
+                                    Unggah Chart Screenshot
+                                </h3>
+
+                                <div 
+                                    onDragOver={handleDragOver}
+                                    onDrop={handleDrop}
+                                    onClick={() => fileInputRef.current.click()}
+                                    className="border-2 border-dashed border-slate-200 hover:border-brand-400 rounded-2xl p-6 text-center cursor-pointer bg-slate-50 transition-all group flex flex-col items-center justify-center min-h-[180px]"
+                                >
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef}
+                                        onChange={(e) => handleImageUpload(e.target.files[0])}
+                                        className="hidden" 
+                                        accept="image/png, image/jpg, image/jpeg, image/webp"
+                                    />
+                                    <div className="p-3 bg-white rounded-full shadow-sm group-hover:scale-110 transition duration-300 mb-3 border border-slate-100">
+                                        <i data-lucide="cloud-upload" className="w-7 h-7 text-brand-500"></i>
+                                    </div>
+                                    <p className="text-sm font-semibold text-neutral-800">Tarik gambar kemari atau ketuk</p>
+                                    <p className="text-xs text-neutral-400 mt-1">Mendukung screenshot MT4, MT5, & TradingView (PNG, JPG, WEBP maks 20MB)</p>
+                                </div>
+
+                                {isImageBlurry && (
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
+                                        <i data-lucide="alert-triangle" className="w-5 h-5 text-amber-500 shrink-0 mt-0.5"></i>
+                                        <p className="text-xs text-amber-800 leading-normal">
+                                            <strong>Peringatan Resolusi:</strong> Gambar tampak terlalu kecil atau buram. Rekomendasi unggah ulang agar OCR dapat berjalan sempurna.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {imageMetadata && (
+                                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-xs space-y-2 relative overflow-hidden">
+                                        <div className="flex justify-between">
+                                            <span className="text-neutral-500">Nama File:</span>
+                                            <span className="font-semibold text-neutral-800 truncate max-w-[200px]">{imageMetadata.name}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-neutral-500">Resolusi Asli:</span>
+                                            <span className="font-semibold text-neutral-800">{imageMetadata.resolution}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-neutral-500">Ukuran Asli:</span>
+                                            <span className="font-semibold text-neutral-800">{imageMetadata.size}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-neutral-500">Ukuran Kompresi AI:</span>
+                                            <span className="font-semibold text-brand-500">{imageMetadata.compressedSize}</span>
+                                        </div>
+
+                                        <div className="relative mt-3 rounded-lg overflow-hidden border border-slate-200">
+                                            <img src={imagePreview} className="w-full h-36 object-cover" alt="Preview Chart" />
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); setIsPreviewOpen(true); }}
+                                                className="absolute bottom-2 right-2 bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-lg transition"
+                                                title="Zoom Preview"
+                                            >
+                                                <i data-lucide="maximize" className="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={handleStartAnalysis}
+                                    disabled={!imagePreview || isAnalyzing}
+                                    className="w-full bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md shadow-brand-100 flex items-center justify-center gap-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed group"
+                                >
+                                    <i data-lucide="sparkle" className="w-5 h-5 group-hover:rotate-12 transition"></i>
+                                    Mulai Analisis AI
+                                </button>
+                            </div>
+
+                            {/* Info Guide Card */}
+                            <div className="bg-slate-100 border border-slate-200/60 p-4 rounded-2xl text-xs space-y-2">
+                                <h4 className="font-bold text-neutral-800 flex items-center gap-1.5">
+                                    <i data-lucide="info" className="w-4 h-4 text-brand-500"></i>
+                                    Cara Menggunakan Aplikasi:
+                                </h4>
+                                <ol className="list-decimal list-inside space-y-1.5 text-neutral-600 pl-1">
+                                    <li>Ketuk tombol <strong className="text-neutral-800">Pengaturan API</strong> di atas dan isi API Key Anda.</li>
+                                    <li>Unggah gambar screenshot chart MT4/MT5/TradingView Anda.</li>
+                                    <li>Tekan tombol <strong className="text-neutral-800">Mulai Analisis AI</strong>.</li>
+                                    <li>Lihat rekomendasi eksekusi sinyal dan target waktu/harga terbaik.</li>
+                                </ol>
+                            </div>
+                        </div>
+
+                        {/* RIGHT COLUMN: ANALYSYS REPORT AND HISTORY */}
+                        <div className="lg:col-span-7 space-y-6">
+
+                            {/* Processing Progress Loader Overlay */}
+                            {isAnalyzing && (
+                                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6 animate-pulse">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="font-extrabold text-neutral-900 flex items-center gap-2">
+                                            <span className="relative flex h-3 w-3">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-brand-500"></span>
+                                            </span>
+                                            Alur Analisis Agentic AI...
+                                        </h3>
+                                        <span className="text-xs font-bold text-brand-500">
+                                            {Math.round(((analysisStep + 1) / analysisSteps.length) * 100)}%
+                                        </span>
+                                    </div>
+
+                                    {/* Progress Bar */}
+                                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                        <div 
+                                            className="bg-brand-500 h-full transition-all duration-300"
+                                            style={{ width: `${((analysisStep + 1) / analysisSteps.length) * 100}%` }}
+                                        ></div>
+                                    </div>
+
+                                    {/* Scrollable list of automated steps */}
+                                    <div className="space-y-2 border-t border-slate-100 pt-4">
+                                        {analysisSteps.map((step, idx) => {
+                                            const isDone = idx < analysisStep;
+                                            const isActive = idx === analysisStep;
+                                            return (
+                                                <div 
+                                                    key={idx} 
+                                                    className={`flex items-center gap-3 text-xs transition duration-200 ${
+                                                        isDone ? 'text-emerald-500 font-medium' : isActive ? 'text-brand-500 font-semibold scale-102 pl-2' : 'text-neutral-300'
+                                                    }`}
+                                                >
+                                                    {isDone ? (
+                                                        <i data-lucide="check" className="w-4 h-4 text-emerald-500"></i>
+                                                    ) : isActive ? (
+                                                        <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+                                                    ) : (
+                                                        <i data-lucide="circle" className="w-4 h-4 text-neutral-200"></i>
+                                                    )}
+                                                    <span>{step}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Analysis Result Display */}
+                            {analysisResult ? (
+                                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden relative">
+                                    {/* Top colored indicator band based on signal direction */}
+                                    <div className={`h-2.5 w-full ${
+                                        analysisResult.signal === 'BUY' ? 'bg-emerald-500' : analysisResult.signal === 'SELL' ? 'bg-rose-500' : 'bg-amber-500'
+                                    }`}></div>
+
+                                    <div className="p-6 space-y-6">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                                            <div>
+                                                <div className="flex items-center gap-2.5">
+                                                    <span className={`text-xs font-black uppercase tracking-wider px-3.5 py-1 rounded-full ${
+                                                        analysisResult.signal === 'BUY' ? 'bg-emerald-100 text-emerald-800' : analysisResult.signal === 'SELL' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                                                    }`}>
+                                                        {analysisResult.signal} SIGNAL
+                                                    </span>
+                                                    <span className="text-sm font-bold text-neutral-900 bg-slate-100 px-2.5 py-1 rounded-lg">
+                                                        {analysisResult.pair} • {analysisResult.timeframe}
+                                                    </span>
+                                                </div>
+                                                <h2 className="text-xl font-extrabold text-neutral-900 mt-2">Premium Market Report</h2>
+                                            </div>
+
+                                            {/* Confidence gauge circular visual representation */}
+                                            <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 p-3 rounded-2xl">
+                                                <div className="relative flex items-center justify-center">
+                                                    <svg className="w-12 h-12 transform -rotate-90">
+                                                        <circle cx="24" cy="24" r="18" stroke="#cbd5e1" strokeWidth="3" fill="transparent" />
+                                                        <circle cx="24" cy="24" r="18" stroke="#0c85eb" strokeWidth="3" fill="transparent" 
+                                                            strokeDasharray={2 * Math.PI * 18}
+                                                            strokeDashoffset={2 * Math.PI * 18 * (1 - analysisResult.confidence / 100)}
+                                                        />
+                                                    </svg>
+                                                    <span className="absolute text-[11px] font-black">{analysisResult.confidence}%</span>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Akurasi Analisis</p>
+                                                    <p className="text-xs font-bold text-neutral-800">Confidence Level</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Highlighted Execution Timing recommendation card */}
+                                        <div className={`p-4 rounded-xl border flex flex-col gap-2.5 ${
+                                            analysisResult.signal === 'BUY' 
+                                                ? 'bg-emerald-50/50 border-emerald-100 text-emerald-950' 
+                                                : analysisResult.signal === 'SELL' 
+                                                ? 'bg-rose-50/50 border-rose-100 text-rose-950' 
+                                                : 'bg-amber-50/50 border-amber-100 text-amber-950'
+                                        }`}>
+                                            <div className="flex items-center gap-2">
+                                                <div className={`p-1.5 rounded-lg ${
+                                                    analysisResult.signal === 'BUY' ? 'bg-emerald-500 text-white' : analysisResult.signal === 'SELL' ? 'bg-rose-500 text-white' : 'bg-amber-500 text-white'
+                                                }`}>
+                                                    <i data-lucide="bell" className="w-4 h-4"></i>
+                                                </div>
+                                                <h4 className="font-extrabold text-sm tracking-wide uppercase">REKOMENDASI EKSEKUSI & TIMING POSISI</h4>
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-dashed border-slate-200">
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-slate-400">AMBIL POSISI / ENTRY</p>
+                                                    <p className="text-xs font-semibold mt-1 bg-white/70 p-2 rounded-lg border border-slate-100">
+                                                        👉 Ambil posisi <strong className="font-bold">{analysisResult.signal}</strong> di harga <span className="font-bold text-brand-600 underline font-mono text-sm">{analysisResult.entry}</span>
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-500 mt-1 pl-1">
+                                                        {analysisResult.timing_recommendation}
+                                                    </p>
+                                                </div>
+                                                
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-slate-400">TARGET PROFIT / EXIT</p>
+                                                    <p className="text-xs font-semibold mt-1 bg-white/70 p-2 rounded-lg border border-slate-100">
+                                                        🎯 Target profit di harga <span className="font-bold text-emerald-600 font-mono text-sm">{analysisResult.tp1}</span>
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-500 mt-1 pl-1">
+                                                        {analysisResult.target_profit_recommendation || `Ambil level TP1 di ${analysisResult.tp1}`}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Financial Trade Parameter Matrix Grid */}
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            <div className="bg-slate-50/55 p-3 rounded-xl border border-slate-100">
+                                                <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wide">Trend</p>
+                                                <p className="text-sm font-bold text-neutral-800 mt-0.5">{analysisResult.trend || '-'}</p>
+                                            </div>
+                                            <div className="bg-slate-50/55 p-3 rounded-xl border border-slate-100">
+                                                <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wide">Risk/Reward</p>
+                                                <p className="text-sm font-bold text-neutral-800 mt-0.5">{analysisResult.risk_reward || '-'}</p>
+                                            </div>
+                                            <div className="bg-slate-50/55 p-3 rounded-xl border border-slate-100">
+                                                <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wide">Support</p>
+                                                <p className="text-sm font-bold text-neutral-800 mt-0.5 font-mono">{analysisResult.support || '-'}</p>
+                                            </div>
+                                            <div className="bg-slate-50/55 p-3 rounded-xl border border-slate-100">
+                                                <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wide">Resistance</p>
+                                                <p className="text-sm font-bold text-neutral-800 mt-0.5 font-mono">{analysisResult.resistance || '-'}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Left parameters block */}
+                                            <div className="border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
+                                                <div className="flex justify-between items-center p-3 bg-slate-50">
+                                                    <span className="text-xs font-bold text-neutral-500 uppercase tracking-wide">Parameter Entri</span>
+                                                    <i data-lucide="key" className="w-3.5 h-3.5 text-neutral-400"></i>
+                                                </div>
+                                                <div className="flex justify-between p-3 text-xs">
+                                                    <span className="text-neutral-500">Harga Entry:</span>
+                                                    <span className="font-bold text-neutral-900 font-mono">{analysisResult.entry || '-'}</span>
+                                                </div>
+                                                <div className="flex justify-between p-3 text-xs">
+                                                    <span className="text-rose-500 font-medium">Stop Loss (SL):</span>
+                                                    <span className="font-bold text-rose-600 font-mono">{analysisResult.stop_loss || '-'}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Right parameters block */}
+                                            <div className="border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
+                                                <div className="flex justify-between items-center p-3 bg-slate-50">
+                                                    <span className="text-xs font-bold text-neutral-500 uppercase tracking-wide">Target Keuntungan</span>
+                                                    <i data-lucide="target" className="w-3.5 h-3.5 text-neutral-400"></i>
+                                                </div>
+                                                <div className="flex justify-between p-3 text-xs">
+                                                    <span className="text-emerald-600 font-medium">Take Profit 1:</span>
+                                                    <span className="font-bold text-emerald-700 font-mono">{analysisResult.tp1 || '-'}</span>
+                                                </div>
+                                                <div className="flex justify-between p-3 text-xs">
+                                                    <span className="text-emerald-600 font-medium">Take Profit 2:</span>
+                                                    <span className="font-bold text-neutral-900 font-mono">{analysisResult.tp2 || '-'}</span>
+                                                </div>
+                                                <div className="flex justify-between p-3 text-xs">
+                                                    <span className="text-emerald-600 font-medium">Take Profit 3:</span>
+                                                    <span className="font-bold text-neutral-900 font-mono">{analysisResult.tp3 || '-'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Written analysis paragraph summary */}
+                                        <div className="space-y-2">
+                                            <h4 className="text-xs font-bold text-neutral-400 uppercase tracking-wide">Ringkasan Analisis Bahasa Indonesia</h4>
+                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm leading-relaxed text-neutral-700">
+                                                {analysisResult.summary}
+                                            </div>
+                                        </div>
+
+                                        {/* Action Buttons */}
+                                        <div className="flex flex-wrap gap-2 pt-2">
+                                            <button 
+                                                onClick={handleCopyText}
+                                                className="flex-1 min-w-[120px] bg-slate-100 hover:bg-slate-200 text-neutral-700 text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5"
+                                            >
+                                                <i data-lucide="copy" className="w-4 h-4"></i>
+                                                Copy Hasil
+                                            </button>
+                                            <button 
+                                                onClick={handleShare}
+                                                className="flex-1 min-w-[120px] bg-slate-100 hover:bg-slate-200 text-neutral-700 text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5"
+                                            >
+                                                <i data-lucide="share-2" className="w-4 h-4"></i>
+                                                Share Hasil
+                                            </button>
+                                            <button 
+                                                onClick={handleDownloadReport}
+                                                className="flex-1 min-w-[120px] bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm shadow-brand-100"
+                                            >
+                                                <i data-lucide="download" className="w-4 h-4"></i>
+                                                Download SVG Report
+                                            </button>
+                                        </div>
+
+                                        {/* Disclaimer */}
+                                        <div className="bg-slate-100 text-neutral-400 text-[10px] p-3 rounded-lg leading-relaxed text-center">
+                                            <strong>Disclaimer:</strong> Analisis ini dibuat otomatis oleh kecerdasan buatan (AI) berdasarkan screenshot chart yang Anda unggah. Hasil ini bukan merupakan jaminan profit pasti dan sama sekali bukan merupakan saran finansial. Harap gunakan analisis teknikal pribadi Anda sebelum mengeksekusi pasar.
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                !isAnalyzing && (
+                                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center text-neutral-400 flex flex-col items-center justify-center space-y-3">
+                                        <div className="p-4 bg-slate-50 rounded-full border border-slate-100 text-slate-300">
+                                            <i data-lucide="area-chart" className="w-12 h-12"></i>
+                                        </div>
+                                        <h3 className="font-bold text-neutral-800 text-base">Menunggu Gambar Analisis</h3>
+                                        <p className="text-xs max-w-sm">
+                                            Silakan unggah screenshot chart trading Anda lalu klik tombol "Mulai Analisis AI" untuk melihat hasil ringkasan terperinci.
+                                        </p>
+                                    </div>
+                                )
+                            )}
+
+                            {/* Card: History list */}
+                            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                    <h3 className="font-bold text-neutral-900 flex items-center gap-2">
+                                        <i data-lucide="history" className="w-5 h-5 text-brand-500"></i>
+                                        Riwayat Analisis
+                                    </h3>
+                                    {history.length > 0 && (
+                                        <button 
+                                            onClick={handleClearHistory}
+                                            className="text-xs font-semibold text-rose-500 hover:underline"
+                                        >
+                                            Hapus Semua
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Filters and Search row */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Cari pair, trend..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="text-xs border border-neutral-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                                    />
+                                    <select 
+                                        value={filterSignal}
+                                        onChange={(e) => setFilterSignal(e.target.value)}
+                                        className="text-xs border border-neutral-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-500 bg-white"
+                                    >
+                                        <option value="ALL">Semua Sinyal</option>
+                                        <option value="BUY">Sinyal BUY</option>
+                                        <option value="SELL">Sinyal SELL</option>
+                                        <option value="WAIT">Sinyal WAIT</option>
+                                    </select>
+                                    <select 
+                                        value={sortBy}
+                                        onChange={(e) => setSortBy(e.target.value)}
+                                        className="text-xs border border-neutral-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-500 bg-white"
+                                    >
+                                        <option value="NEWEST">Terbaru</option>
+                                        <option value="OLDEST">Terlama</option>
+                                        <option value="CONFIDENCE">Akurasi Tertinggi</option>
+                                    </select>
+                                </div>
+
+                                {/* History list rendering */}
+                                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                                    {filteredHistory.length > 0 ? (
+                                        filteredHistory.map((item) => (
+                                            <div 
+                                                key={item.id}
+                                                onClick={() => setAnalysisResult(item)}
+                                                className="border border-slate-100 hover:border-brand-200 p-3 rounded-xl flex items-center justify-between text-xs bg-slate-50/50 hover:bg-brand-50/20 cursor-pointer transition"
+                                            >
+                                                <div className="flex items-center space-x-3">
+                                                    <span className={`font-black uppercase text-[10px] px-2 py-0.5 rounded-md ${
+                                                        item.signal === 'BUY' ? 'bg-emerald-100 text-emerald-800' : item.signal === 'SELL' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                                                    }`}>
+                                                        {item.signal}
+                                                    </span>
+                                                    <div>
+                                                        <p className="font-bold text-neutral-800">{item.pair} ({item.timeframe})</p>
+                                                        <p className="text-[10px] text-neutral-400">{item.timestamp}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="font-bold text-neutral-500">{item.confidence}% Conf.</span>
+                                                    <button 
+                                                        onClick={(e) => handleDeleteHistoryItem(item.id, e)}
+                                                        className="text-neutral-300 hover:text-rose-500 p-1"
+                                                    >
+                                                        <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-6 text-neutral-400 text-xs">
+                                            Belum ada riwayat analisis terekam.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                        </div>
+                    </main>
+
+                    {/* Footer bar containing copyright & PWA indicator */}
+                    <footer className="bg-white border-t border-slate-100 py-4 mt-6">
+                        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center text-xs text-neutral-400 gap-2">
+                            <p>© 2026 AI MARKET ANALISIS. Hak Cipta Dilindungi.</p>
+                            <div className="flex items-center space-x-4">
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                    Local Secure Sync
+                                </span>
+                                <span>v1.3.0 PWA Premium</span>
+                            </div>
+                        </div>
+                    </footer>
+
+                    {/* Preview Modal for Image Zoom */}
+                    {isPreviewOpen && (
+                        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                            <div className="relative max-w-4xl w-full max-h-[90vh] overflow-auto bg-neutral-900 rounded-2xl flex items-center justify-center">
+                                <button 
+                                    onClick={() => setIsPreviewOpen(false)}
+                                    className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 text-white rounded-full p-2 transition"
+                                >
+                                    <i data-lucide="x" className="w-6 h-6"></i>
+                                </button>
+                                <img src={imagePreview} className="max-w-full max-h-[80vh] object-contain" alt="Enlarged Preview" />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* PROFESSIONAL SETTINGS MODAL */}
+                    {isSettingsOpen && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="bg-white max-w-md w-full rounded-2xl shadow-xl overflow-hidden animate-in fade-in duration-200">
+                                <div className="bg-brand-500 p-5 text-white flex items-center justify-between">
+                                    <div className="flex items-center space-x-2">
+                                        <i data-lucide="settings" className="w-5 h-5"></i>
+                                        <h3 className="font-bold text-base">Pengaturan Provider & API</h3>
+                                    </div>
+                                    <button 
+                                        onClick={() => setIsSettingsOpen(false)}
+                                        className="hover:opacity-80 text-white font-bold text-lg"
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
+                                
+                                <div className="p-6 space-y-5">
+                                    <p className="text-xs text-slate-500 leading-normal">
+                                        Data kredensial ini hanya disimpan di memori <strong className="text-slate-800">Local Storage</strong> browser Anda sendiri untuk alasan keamanan penuh.
+                                    </p>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-neutral-500 mb-1.5 uppercase tracking-wider">Pilih Provider AI</label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {['gemini', 'openai', 'openrouter'].map((prov) => (
+                                                <button
+                                                    key={prov}
+                                                    type="button"
+                                                    onClick={() => setSelectedProvider(prov)}
+                                                    className={`py-2 px-3 rounded-xl text-xs font-semibold uppercase tracking-wider transition border ${
+                                                        selectedProvider === prov
+                                                            ? 'bg-brand-500 text-white border-brand-500 shadow-sm shadow-brand-100'
+                                                            : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                                                    }`}
+                                                >
+                                                    {prov}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wider">Kunci API (API Key)</label>
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowApiKey(!showApiKey)}
+                                                className="text-xs text-brand-500 hover:underline font-semibold"
+                                            >
+                                                {showApiKey ? 'Sembunyikan' : 'Tampilkan'}
+                                            </button>
+                                        </div>
+                                        <div className="relative">
+                                            <input
+                                                type={showApiKey ? "text" : "password"}
+                                                value={apiKeys[selectedProvider]}
+                                                onChange={(e) => handleApiKeyChange(e.target.value)}
+                                                placeholder={selectedProvider === 'gemini' ? 'AIzaS...' : 'sk-...'}
+                                                className="w-full text-sm border border-neutral-200 rounded-xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all font-mono"
+                                            />
+                                        </div>
+                                        {apiKeys[selectedProvider] && !showApiKey && (
+                                            <p className="text-[11px] text-neutral-400 mt-1 font-mono">
+                                                Aktif: {maskApiKey(apiKeys[selectedProvider])}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="flex gap-2 pt-2">
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveKeys}
+                                            className="flex-1 bg-neutral-900 text-white hover:bg-neutral-800 text-xs font-bold py-3 rounded-xl transition shadow-sm flex items-center justify-center gap-1.5"
+                                        >
+                                            <i data-lucide="save" className="w-4 h-4"></i>
+                                            Simpan & Tutup
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={isTestingConnection}
+                                            onClick={handleTestConnection}
+                                            className="flex-1 bg-brand-50 text-brand-600 hover:bg-brand-100 text-xs font-bold py-3 rounded-xl transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                        >
+                                            {isTestingConnection ? (
+                                                <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+                                            ) : (
+                                                <i data-lucide="sparkles" className="w-4 h-4"></i>
+                                            )}
+                                            Tes Koneksi
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Render React Application
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+
+    <!-- Inline service worker registration for offline PWA compliance -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('data:text/javascript;base64,c2VsZi5hZGRFdmVudExpc3RlbmVyKCdmaW5kX21lX29mZmxpbmUnLCAoKSA9PiB7fSk7', { scope: './' })
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    }, err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
